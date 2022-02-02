@@ -117,7 +117,28 @@ with xr.open_mfdataset(
     path_smr+filename,
     preprocess=lambda x: x.reindex(latitude=np.arange(-80,90,20)),
     ) as mds:
-    h2o_NP = mds.H2O_mean.sel(
+    h2o_NP_19 = mds.H2O_mean.sel(
+            latitude=80
+        ).drop(
+            'latitude'
+        ).rename(altitude='z').compute()
+filename = 'Daily_'+'Odin-SMR_L2_ALL-Meso-v3.0.0_H2O-557-GHz-45-to-100-km_2009-*.nc'
+with xr.open_mfdataset(
+    path_smr+filename,
+    preprocess=lambda x: x.reindex(latitude=np.arange(-80,90,20)),
+    ) as mds:
+    h2o_NP_13 = mds.H2O_mean.sel(
+            latitude=80
+        ).drop(
+            'latitude'
+        ).rename(altitude='z').compute()
+
+filename = 'Daily_'+'Odin-SMR_L2_ALL19lowTunc_Temperature-557-(Fmode-19)-45-to-90-km_2009-*.nc'
+with xr.open_mfdataset(
+    path_smr+filename,
+    preprocess=lambda x: x.reindex(latitude=np.arange(-80,90,20)),
+    ) as mds:
+    T_NP_19 = mds.Temperature_mean.sel(
             latitude=80
         ).drop(
             'latitude'
@@ -128,11 +149,43 @@ with xr.open_mfdataset(
     path_smr+filename,
     preprocess=lambda x: x.reindex(latitude=np.arange(-80,90,20)),
     ) as mds:
-    T_NP = mds.Temperature_mean.sel(
+    T_NP_13 = mds.Temperature_mean.sel(
             latitude=80
         ).drop(
             'latitude'
         ).rename(altitude='z').compute()
+
+#%% combine FM19 and FM13
+T_NP = xr.concat([T_NP_13, T_NP_19], dim='time').sortby('time')
+h2o_NP = xr.concat([h2o_NP_13, h2o_NP_19], dim='time').sortby('time')
+
+fig, ax = plt.subplots(2,1, figsize=(8,8), sharex=True, sharey=True)
+T_NP.dropna('time','all').plot.contourf(ax=ax[0], robust=True, x='time')
+h2o_NP.dropna('time','all').plot.contourf(ax=ax[1], robust=True, x='time')
+[ax[0].axvline(x=t,c='k',ls=':') for t in T_NP_13.dropna('time','all').time.values]
+[ax[1].axvline(x=t,c='k',ls=':') for t in h2o_NP_13.dropna('time','all').time.values]
+[ax[0].axvline(x=t,c='r',ls=':') for t in T_NP_19.dropna('time','all').time.values]
+[ax[1].axvline(x=t,c='r',ls=':') for t in h2o_NP_19.dropna('time','all').time.values]
+plt.show()
+
+#%% compare FM 19 and FM 13
+fig, ax = plt.subplots(6,1, figsize=(10,15), sharex=True, sharey=True)
+# fig.patch.set_facecolor('w')
+plt_args = dict(x='time', cmap='viridis')
+T_NP_13.dropna('time','all').plot.contourf(ax=ax[0], **plt_args)
+T_NP_19.dropna('time','all').plot.contourf(ax=ax[1], **plt_args)
+T_NP.dropna('time','all').plot.contourf(ax=ax[2], **plt_args)
+
+h2o_NP_13.dropna('time','all').plot.contourf(ax=ax[3], vmin=0, **plt_args)
+h2o_NP_19.dropna('time','all').plot.contourf(ax=ax[4], vmin=0, **plt_args)
+h2o_NP.dropna('time','all').plot.contourf(ax=ax[5], vmin=0, **plt_args)
+
+[ax[i].set(title='FM 19', xlabel='') for i in [0,3]]
+[ax[i].set(title='FM 13', xlabel='') for i in [1,4]]
+[ax[i].set(title='FM 13&19', xlabel='') for i in [2,5]]
+[[ax[i].axvline(x=t,c='k',ls=':') for t in ds.dropna('time','all').time.values] for i,ds in enumerate([T_NP_13,T_NP_19,T_NP,h2o_NP_13,h2o_NP_19,h2o_NP]) ]
+plt.show()
+
 
 #%%
 sel_arg = dict(
@@ -142,7 +195,7 @@ sel_arg = dict(
 plot_arg = dict(
     x='time', y='z', cmap='viridis',
 )
-fig, ax = plt.subplots(5,1, figsize=(10,10), sharex=True, sharey=True)
+fig, ax = plt.subplots(7,1, figsize=(15,10), sharex=True, sharey=True)
 
 oh_NP.sel(**sel_arg).plot(
     ax=ax[0],
