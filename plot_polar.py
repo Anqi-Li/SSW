@@ -5,6 +5,15 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 from os import listdir
 
+#%%
+def change_description_o2delta(ds):
+    ds.mean_ver['description'] = 'IRI O2(Delta) volume emission rate'
+    ds.std_ver['description'] = 'IRI O2(Delta) volume emission rate'
+    ds.count_ver['description'] = 'IRI O2(Delta) volume emission rate'
+    return ds
+
+def reindex_lat(ds):
+    return ds.reindex(latitude_bin=np.arange(-80,90,20))
 
 #%%
 def plot_one_year(polar_ver, year, ax=None):
@@ -32,13 +41,8 @@ def plot_one_year(polar_ver, year, ax=None):
 
     ax.set_xlim(np.array(date_range).astype(np.datetime64))
 
-#%% O2 Delta
-def change_description_o2delta(ds):
-    ds.mean_ver['description'] = 'IRI O2(Delta) volume emission rate'
-    ds.std_ver['description'] = 'IRI O2(Delta) volume emission rate'
-    ds.count_ver['description'] = 'IRI O2(Delta) volume emission rate'
-    return ds
 
+#%% O2 Delta
 path_save_stat = '/home/anqil/Documents/sshfs/oso_extra_storage/VER/Channel3/nightglow/averages/Daily_NP_stats/no_equi/'
 with xr.open_mfdataset(
     path_save_stat+'Daily_NP_mean_*.nc', 
@@ -52,9 +56,6 @@ with xr.open_mfdataset(
     [ax[i].set_xticklabels([]) for i in range(len(ax)-1)]
 
 #%% OH
-def reindex_lat(ds):
-    return ds.reindex(latitude_bin=[-80., -60., -40., -20.,   0.,  20.,  40.,  60., 80.])
-
 path_save_stat = '/home/anqil/Documents/sshfs/oso_extra_storage/VER/Channel1/nightglow/averages/zenith/'
 with xr.open_mfdataset(
         # [path_save_stat+'PM_daily_zonal_mean_{}.nc'.format(y) for y in [2001, 2002]],
@@ -68,10 +69,8 @@ with xr.open_mfdataset(
         plot_one_year(NP_ver, year, ax[i])
     [ax[i].set_xticklabels([]) for i in range(len(ax)-1)]
 
-#%% OH specific dates
-def reindex_lat(ds):
-    return ds.reindex(latitude_bin=[-80., -60., -40., -20.,   0.,  20.,  40.,  60., 80.])
-
+#%% specific dates
+# OH
 path_save_stat = '/home/anqil/Documents/sshfs/oso_extra_storage/VER/Channel1/nightglow/averages/zenith/'
 with xr.open_mfdataset(
         # [path_save_stat+'PM_daily_zonal_mean_{}.nc'.format(y) for y in [2001, 2002]],
@@ -80,14 +79,102 @@ with xr.open_mfdataset(
     ) as mds:
 
     NP_ver = mds.mean_ver.sel(latitude_bin=80).drop('latitude_bin')
-    NP_ver.sel(time=slice('2009-01-01', '2009-02-01')).plot(
-        x='time', y='z',
-        cmap='viridis',
-        norm=LogNorm(vmin=1e3, vmax=1e5),
-        ylim=(70e3, 95e3),
-        # add_colorbar=False,
-        # add_legend=False,
-        )
+    # NP_ver.sel(time=slice('2009-01-01', '2009-03-01')).plot(
+    #     x='time', y='z',
+    #     cmap='viridis',
+    #     norm=LogNorm(vmin=1e3, vmax=1e5),
+    #     ylim=(70e3, 95e3),
+    #     # add_colorbar=False,
+    #     # add_legend=False,
+    #     )
+    oh_NP = NP_ver.copy()
+
+# o2delta
+path_save_stat = '/home/anqil/Documents/sshfs/oso_extra_storage/VER/Channel3/nightglow/averages/Daily_NP_stats/no_equi/'
+with xr.open_mfdataset(
+    path_save_stat+'Daily_NP_mean_*.nc', 
+    preprocess=change_description_o2delta
+    ) as mds:
+    NP_ver = mds.mean_ver
+    o2delta_NP = NP_ver.copy()
+
+#%%
+# SMR T, o3, ho2...
+path_smr = './data_SMR/'
+filename = 'Daily_'+'Odin-SMR_L2_ALL19lowTunc_O3-557-GHz-45-to-90-km_2009-*.nc'
+with xr.open_mfdataset(
+    path_smr+filename,
+    preprocess=lambda x: x.reindex(latitude=np.arange(-80,90,20)),
+    ) as mds:
+    o3_NP = mds.O3_mean.sel(
+            latitude=80
+        ).drop(
+            'latitude'
+        ).rename(altitude='z').compute()
+
+filename = 'Daily_'+'Odin-SMR_L2_ALL19lowTunc_H2O-557-GHz-45-to-100-km_2009-*.nc'
+with xr.open_mfdataset(
+    path_smr+filename,
+    preprocess=lambda x: x.reindex(latitude=np.arange(-80,90,20)),
+    ) as mds:
+    h2o_NP = mds.H2O_mean.sel(
+            latitude=80
+        ).drop(
+            'latitude'
+        ).rename(altitude='z').compute()
+
+filename = 'Daily_'+'Odin-SMR_L2_ALL-Meso-v3.0.0_Temperature-557-(Fmode-13)-45-to-90-km_2009-*.nc'
+with xr.open_mfdataset(
+    path_smr+filename,
+    preprocess=lambda x: x.reindex(latitude=np.arange(-80,90,20)),
+    ) as mds:
+    T_NP = mds.Temperature_mean.sel(
+            latitude=80
+        ).drop(
+            'latitude'
+        ).rename(altitude='z').compute()
+
+#%%
+sel_arg = dict(
+    time=slice('2009-01-01', '2009-03-01'),
+    z=slice(70e3,95e3),
+)
+plot_arg = dict(
+    x='time', y='z', cmap='viridis',
+)
+fig, ax = plt.subplots(5,1, figsize=(10,10), sharex=True, sharey=True)
+
+oh_NP.sel(**sel_arg).plot(
+    ax=ax[0],
+    **plot_arg,
+    norm=LogNorm(vmin=1e3, vmax=2e5),
+    )
+
+o2delta_NP.sel(**sel_arg).plot(
+    ax=ax[1],
+    **plot_arg,
+    norm=LogNorm(vmin=1e3, vmax=2e5),
+    )
+
+o3_NP.sel(**sel_arg).interpolate_na('time').plot.contourf(
+    ax=ax[2],
+    **plot_arg,
+    norm=LogNorm(vmin=1e-6, vmax=3e-6),
+    )
+
+h2o_NP.sel(**sel_arg).interpolate_na('time').plot.contourf(
+    ax=ax[3],
+    **plot_arg,
+    )
+
+T_NP.sel(**sel_arg).interpolate_na('time').plot.contourf(
+    ax=ax[4],
+    **plot_arg,
+    )
+
+[[ax[i+2].axvline(x=t,c='k',ls=':') for t in ds.dropna('time','all').time.values] for i,ds in enumerate([o3_NP, h2o_NP, T_NP]) ]
+
+plt.show()
 
 
 
@@ -97,10 +184,7 @@ with xr.open_mfdataset(
 
 
 
-
-
-
-
+#%% Archive
 #%% O2delta
 path_save_stat = '/home/anqil/Documents/sshfs/oso_extra_storage/VER/Channel3/nightglow/averages/Daily_NP_stats/no_equi/'
 with xr.open_mfdataset(
