@@ -2,7 +2,7 @@
 import numpy as np
 import xarray as xr
 import matplotlib.pyplot as plt
-from matplotlib.colors import LogNorm
+from matplotlib.colors import LogNorm, NoNorm
 from os import listdir
 
 #%%
@@ -15,7 +15,189 @@ def change_description_o2delta(ds):
 def reindex_lat(ds):
     return ds.reindex(latitude_bin=np.arange(-80,90,20))
 
+#%% specific one winter at NP to see SSW
+# OH
+path_save_stat = '/home/anqil/Documents/sshfs/oso_extra_storage/VER/Channel1/nightglow/averages/zenith/'
+with xr.open_mfdataset(
+        # [path_save_stat+'PM_daily_zonal_mean_{}.nc'.format(y) for y in [2001, 2002]],
+        path_save_stat+'PM_daily_zonal_mean_*.nc',
+        preprocess=reindex_lat,    
+    ) as mds:
+
+    NP_ver = mds.mean_ver.sel(latitude_bin=80).drop('latitude_bin').rename('OH_mean')
+    # NP_ver.sel(time=slice('2009-01-01', '2009-03-01')).plot(
+    #     x='time', y='z',
+    #     cmap='viridis',
+    #     norm=LogNorm(vmin=1e3, vmax=1e5),
+    #     ylim=(70e3, 95e3),
+    #     # add_colorbar=False,
+    #     # add_legend=False,
+    #     )
+    oh_NP = NP_ver.copy()
+
+# o2delta
+path_save_stat = '/home/anqil/Documents/sshfs/oso_extra_storage/VER/Channel3/nightglow/averages/Daily_NP_stats/no_equi/'
+with xr.open_mfdataset(
+    path_save_stat+'Daily_NP_mean_*.nc', 
+    preprocess=change_description_o2delta
+    ) as mds:
+    NP_ver = mds.mean_ver.rename('O2Delta_mean')
+    o2delta_NP = NP_ver.copy()
+
 #%%
+# SMR T, o3, ho2...
+# path_smr = './data_SMR/'
+def read_smr_daily(filename_pattern, profile):
+    path_smr = './data_SMR/'
+    with xr.open_mfdataset(
+        path_smr+filename_pattern,
+        preprocess=lambda x: x.reindex(latitude=np.arange(-80,90,20)),
+        ) as mds:
+        ds_NP = mds[profile+'_mean'].sel(
+                latitude=80
+            ).drop(
+                'latitude'
+            ).rename(altitude='z').compute()
+    return ds_NP
+
+
+filename = 'Daily_'+'Odin-SMR_L2_ALL19lowTunc_O3-557-GHz-45-to-90-km_{}-*.nc'.format('*')
+o3_NP_19 = read_smr_daily(filename, 'O3')
+
+filename = 'Daily_' + 'Odin-SMR_L2_ALL-Meso-v3.0.0_O3-557-GHz-45-to-90-km_{}-*.nc'.format('*')
+o3_NP_13 = read_smr_daily(filename, 'O3')
+
+# filename = 'Daily_'+'Odin-SMR_L2_ALL-Strat-v3.0.0_O3-545-GHz-20-to-85-km_2009-*.nc'
+# o3_NP_strat = read_smr_daily(filename, 'O3')
+
+filename = 'Daily_'+'Odin-SMR_L2_ALL19lowTunc_H2O-557-GHz-45-to-100-km_{}-*.nc'.format('*')
+h2o_NP_19 = read_smr_daily(filename, 'H2O')
+
+filename = 'Daily_'+'Odin-SMR_L2_ALL-Meso-v3.0.0_H2O-557-GHz-45-to-100-km_{}-*.nc'.format('*')
+h2o_NP_13 = read_smr_daily(filename, 'H2O')
+
+filename = 'Daily_'+'Odin-SMR_L2_ALL19lowTunc_Temperature-557-(Fmode-19)-45-to-90-km_{}-*.nc'.format('*')
+T_NP_19 = read_smr_daily(filename, 'Temperature')
+
+filename = 'Daily_'+'Odin-SMR_L2_ALL-Meso-v3.0.0_Temperature-557-(Fmode-13)-45-to-90-km_{}-*.nc'.format('*')
+T_NP_13 = read_smr_daily(filename, 'Temperature')
+
+
+#%% combine FM19 and FM13
+o3_NP = xr.concat([o3_NP_13, o3_NP_19], dim='time').sortby('time')
+T_NP = xr.concat([T_NP_13, T_NP_19], dim='time').sortby('time')
+h2o_NP = xr.concat([h2o_NP_13, h2o_NP_19], dim='time').sortby('time')
+
+#%% plot OH O2del O3 H2O T
+year = 2013
+sel_arg = dict(
+    time=slice('{}-11-01'.format(year-1), '{}-02-25'.format(year)),
+    z=slice(50e3,100e3),
+    )
+plot_arg = dict(
+    x='time', y='z', cmap='viridis', robust=True,
+    )
+fig, ax = plt.subplots(5,1, figsize=(8,10), facecolor='w', sharex=True, sharey=True)
+
+oh_NP.sel(**sel_arg).plot(
+    ax=ax[0],
+    **plot_arg,
+    norm=LogNorm(vmin=1e3, vmax=2e5),
+    )
+
+o2delta_NP.sel(**sel_arg).plot(
+    ax=ax[1],
+    **plot_arg,
+    norm=LogNorm(vmin=1e3, vmax=2e5),
+    )
+
+o3_NP.sel(**sel_arg).dropna('time','all').plot.contourf(
+    ax=ax[2],
+    **plot_arg,
+    )
+
+h2o_NP.sel(**sel_arg).dropna('time','all').plot.contourf(
+    ax=ax[3],
+    **plot_arg,
+    )
+
+T_NP.sel(**sel_arg).dropna('time','all').plot.contourf(
+    ax=ax[4],
+    **plot_arg,
+    )
+
+smr_data_list = [o3_NP_19, h2o_NP_19, T_NP_19]
+[[ax[i+2].axvline(x=t,c='k',ls=':') for t in ds.dropna('time','all').time.values] for i,ds in enumerate(smr_data_list) ]
+smr_data_list = [o3_NP_13, h2o_NP_13, T_NP_13]
+[[ax[i+2].axvline(x=t,c='r',ls=':') for t in ds.dropna('time','all').time.values] for i,ds in enumerate(smr_data_list) ]
+
+[ax[i].set(title=title, xlabel='') for i,title in enumerate('OH O2Del O3 H2O T'.split())]
+plt.show()
+
+
+
+
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+
+#%% SMR: compare FM 19 and FM 13
+fig, ax = plt.subplots(6,1, figsize=(10,15), sharex=True, sharey=True)
+fig.patch.set_facecolor('w')
+plt_args = dict(x='time', cmap='viridis')
+T_NP_13.dropna('time','all').plot.contourf(ax=ax[0], **plt_args)
+T_NP_19.dropna('time','all').plot.contourf(ax=ax[1], **plt_args)
+T_NP.dropna('time','all').plot.contourf(ax=ax[2], **plt_args)
+
+h2o_NP_13.dropna('time','all').plot.contourf(ax=ax[3], robust=True, **plt_args)
+h2o_NP_19.dropna('time','all').plot.contourf(ax=ax[4], robust=True, **plt_args)
+h2o_NP.dropna('time','all').plot.contourf(ax=ax[5], robust=True, **plt_args)
+
+[ax[i].set(title='FM 13', xlabel='') for i in [0,3]]
+[ax[i].set(title='FM 19', xlabel='') for i in [1,4]]
+[ax[i].set(title='FM 13&19', xlabel='') for i in [2,5]]
+[[ax[i].axvline(x=t,c='k',ls=':') for t in ds.dropna('time','all').time.values] for i,ds in enumerate([T_NP_13,T_NP_19,T_NP,h2o_NP_13,h2o_NP_19,h2o_NP]) ]
+plt.show()
+
+
+
+#%%
+fig, ax = plt.subplots(3,1, figsize=(8,8), facecolor='w', sharex=True, sharey=True)
+
+T_NP.dropna('time','all').plot.contourf(ax=ax[0], robust=True, x='time')
+h2o_NP.dropna('time','all').plot.contourf(ax=ax[1], robust=True, x='time')
+o3_NP.dropna('time','all').plot.contourf(ax=ax[2], robust=True, x='time')
+
+[ax[0].axvline(x=t,c='k',ls=':') for t in T_NP_13.dropna('time','all').time.values]
+[ax[1].axvline(x=t,c='k',ls=':') for t in h2o_NP_13.dropna('time','all').time.values]
+[ax[2].axvline(x=t,c='k',ls=':') for t in o3_NP_13.dropna('time','all').time.values]
+
+[ax[0].axvline(x=t,c='r',ls=':') for t in T_NP_19.dropna('time','all').time.values]
+[ax[1].axvline(x=t,c='r',ls=':') for t in h2o_NP_19.dropna('time','all').time.values]
+[ax[2].axvline(x=t,c='r',ls=':') for t in o3_NP_19.dropna('time','all').time.values]
+
+plt.show()
+
+#%% OH and O2del all winters
 def plot_one_year(polar_ver, year, ax=None):
     date_range = ('{}-10'.format(year-1), '{}-03-10'.format(year))
     one_year = polar_ver.sel(
@@ -42,7 +224,7 @@ def plot_one_year(polar_ver, year, ax=None):
     ax.set_xlim(np.array(date_range).astype(np.datetime64))
 
 
-#%% O2 Delta
+# O2 Delta
 path_save_stat = '/home/anqil/Documents/sshfs/oso_extra_storage/VER/Channel3/nightglow/averages/Daily_NP_stats/no_equi/'
 with xr.open_mfdataset(
     path_save_stat+'Daily_NP_mean_*.nc', 
@@ -55,21 +237,6 @@ with xr.open_mfdataset(
         plot_one_year(NP_ver, year, ax[i])
     [ax[i].set_xticklabels([]) for i in range(len(ax)-1)]
 
-#%% OH
-path_save_stat = '/home/anqil/Documents/sshfs/oso_extra_storage/VER/Channel1/nightglow/averages/zenith/'
-with xr.open_mfdataset(
-        # [path_save_stat+'PM_daily_zonal_mean_{}.nc'.format(y) for y in [2001, 2002]],
-        path_save_stat+'PM_daily_zonal_mean_*.nc',
-        preprocess=reindex_lat,    
-    ) as mds:
-    NP_ver = mds.mean_ver.sel(latitude_bin=80).drop('latitude_bin')
-
-    fig, ax = plt.subplots(len(range(2002, 2016)), 1, sharey=True, figsize=(10,20))
-    for i, year in enumerate(range(2002, 2016)):
-        plot_one_year(NP_ver, year, ax[i])
-    [ax[i].set_xticklabels([]) for i in range(len(ax)-1)]
-
-#%% specific dates
 # OH
 path_save_stat = '/home/anqil/Documents/sshfs/oso_extra_storage/VER/Channel1/nightglow/averages/zenith/'
 with xr.open_mfdataset(
@@ -77,165 +244,24 @@ with xr.open_mfdataset(
         path_save_stat+'PM_daily_zonal_mean_*.nc',
         preprocess=reindex_lat,    
     ) as mds:
-
     NP_ver = mds.mean_ver.sel(latitude_bin=80).drop('latitude_bin')
-    # NP_ver.sel(time=slice('2009-01-01', '2009-03-01')).plot(
-    #     x='time', y='z',
-    #     cmap='viridis',
-    #     norm=LogNorm(vmin=1e3, vmax=1e5),
-    #     ylim=(70e3, 95e3),
-    #     # add_colorbar=False,
-    #     # add_legend=False,
-    #     )
-    oh_NP = NP_ver.copy()
 
-# o2delta
-path_save_stat = '/home/anqil/Documents/sshfs/oso_extra_storage/VER/Channel3/nightglow/averages/Daily_NP_stats/no_equi/'
-with xr.open_mfdataset(
-    path_save_stat+'Daily_NP_mean_*.nc', 
-    preprocess=change_description_o2delta
-    ) as mds:
-    NP_ver = mds.mean_ver
-    o2delta_NP = NP_ver.copy()
+    fig, ax = plt.subplots(len(range(2002, 2016)), 1, sharey=True, figsize=(10,20))
+    for i, year in enumerate(range(2002, 2016)):
+        plot_one_year(NP_ver, year, ax[i])
+    [ax[i].set_xticklabels([]) for i in range(len(ax)-1)]
 
-#%%
-# SMR T, o3, ho2...
-path_smr = './data_SMR/'
-filename = 'Daily_'+'Odin-SMR_L2_ALL19lowTunc_O3-557-GHz-45-to-90-km_2009-*.nc'
-with xr.open_mfdataset(
-    path_smr+filename,
-    preprocess=lambda x: x.reindex(latitude=np.arange(-80,90,20)),
-    ) as mds:
-    o3_NP = mds.O3_mean.sel(
-            latitude=80
-        ).drop(
-            'latitude'
-        ).rename(altitude='z').compute()
+# %%
 
-filename = 'Daily_'+'Odin-SMR_L2_ALL19lowTunc_H2O-557-GHz-45-to-100-km_2009-*.nc'
-with xr.open_mfdataset(
-    path_smr+filename,
-    preprocess=lambda x: x.reindex(latitude=np.arange(-80,90,20)),
-    ) as mds:
-    h2o_NP_19 = mds.H2O_mean.sel(
-            latitude=80
-        ).drop(
-            'latitude'
-        ).rename(altitude='z').compute()
-filename = 'Daily_'+'Odin-SMR_L2_ALL-Meso-v3.0.0_H2O-557-GHz-45-to-100-km_2009-*.nc'
-with xr.open_mfdataset(
-    path_smr+filename,
-    preprocess=lambda x: x.reindex(latitude=np.arange(-80,90,20)),
-    ) as mds:
-    h2o_NP_13 = mds.H2O_mean.sel(
-            latitude=80
-        ).drop(
-            'latitude'
-        ).rename(altitude='z').compute()
+# %%
 
-filename = 'Daily_'+'Odin-SMR_L2_ALL19lowTunc_Temperature-557-(Fmode-19)-45-to-90-km_2009-*.nc'
-with xr.open_mfdataset(
-    path_smr+filename,
-    preprocess=lambda x: x.reindex(latitude=np.arange(-80,90,20)),
-    ) as mds:
-    T_NP_19 = mds.Temperature_mean.sel(
-            latitude=80
-        ).drop(
-            'latitude'
-        ).rename(altitude='z').compute()
+# %%
 
-filename = 'Daily_'+'Odin-SMR_L2_ALL-Meso-v3.0.0_Temperature-557-(Fmode-13)-45-to-90-km_2009-*.nc'
-with xr.open_mfdataset(
-    path_smr+filename,
-    preprocess=lambda x: x.reindex(latitude=np.arange(-80,90,20)),
-    ) as mds:
-    T_NP_13 = mds.Temperature_mean.sel(
-            latitude=80
-        ).drop(
-            'latitude'
-        ).rename(altitude='z').compute()
+# %%
 
-#%% combine FM19 and FM13
-T_NP = xr.concat([T_NP_13, T_NP_19], dim='time').sortby('time')
-h2o_NP = xr.concat([h2o_NP_13, h2o_NP_19], dim='time').sortby('time')
+# %%
 
-fig, ax = plt.subplots(2,1, figsize=(8,8), sharex=True, sharey=True)
-T_NP.dropna('time','all').plot.contourf(ax=ax[0], robust=True, x='time')
-h2o_NP.dropna('time','all').plot.contourf(ax=ax[1], robust=True, x='time')
-[ax[0].axvline(x=t,c='k',ls=':') for t in T_NP_13.dropna('time','all').time.values]
-[ax[1].axvline(x=t,c='k',ls=':') for t in h2o_NP_13.dropna('time','all').time.values]
-[ax[0].axvline(x=t,c='r',ls=':') for t in T_NP_19.dropna('time','all').time.values]
-[ax[1].axvline(x=t,c='r',ls=':') for t in h2o_NP_19.dropna('time','all').time.values]
-plt.show()
-
-#%% compare FM 19 and FM 13
-fig, ax = plt.subplots(6,1, figsize=(10,15), sharex=True, sharey=True)
-# fig.patch.set_facecolor('w')
-plt_args = dict(x='time', cmap='viridis')
-T_NP_13.dropna('time','all').plot.contourf(ax=ax[0], **plt_args)
-T_NP_19.dropna('time','all').plot.contourf(ax=ax[1], **plt_args)
-T_NP.dropna('time','all').plot.contourf(ax=ax[2], **plt_args)
-
-h2o_NP_13.dropna('time','all').plot.contourf(ax=ax[3], vmin=0, **plt_args)
-h2o_NP_19.dropna('time','all').plot.contourf(ax=ax[4], vmin=0, **plt_args)
-h2o_NP.dropna('time','all').plot.contourf(ax=ax[5], vmin=0, **plt_args)
-
-[ax[i].set(title='FM 19', xlabel='') for i in [0,3]]
-[ax[i].set(title='FM 13', xlabel='') for i in [1,4]]
-[ax[i].set(title='FM 13&19', xlabel='') for i in [2,5]]
-[[ax[i].axvline(x=t,c='k',ls=':') for t in ds.dropna('time','all').time.values] for i,ds in enumerate([T_NP_13,T_NP_19,T_NP,h2o_NP_13,h2o_NP_19,h2o_NP]) ]
-plt.show()
-
-
-#%%
-sel_arg = dict(
-    time=slice('2009-01-01', '2009-03-01'),
-    z=slice(70e3,95e3),
-)
-plot_arg = dict(
-    x='time', y='z', cmap='viridis',
-)
-fig, ax = plt.subplots(7,1, figsize=(15,10), sharex=True, sharey=True)
-
-oh_NP.sel(**sel_arg).plot(
-    ax=ax[0],
-    **plot_arg,
-    norm=LogNorm(vmin=1e3, vmax=2e5),
-    )
-
-o2delta_NP.sel(**sel_arg).plot(
-    ax=ax[1],
-    **plot_arg,
-    norm=LogNorm(vmin=1e3, vmax=2e5),
-    )
-
-o3_NP.sel(**sel_arg).interpolate_na('time').plot.contourf(
-    ax=ax[2],
-    **plot_arg,
-    norm=LogNorm(vmin=1e-6, vmax=3e-6),
-    )
-
-h2o_NP.sel(**sel_arg).interpolate_na('time').plot.contourf(
-    ax=ax[3],
-    **plot_arg,
-    )
-
-T_NP.sel(**sel_arg).interpolate_na('time').plot.contourf(
-    ax=ax[4],
-    **plot_arg,
-    )
-
-[[ax[i+2].axvline(x=t,c='k',ls=':') for t in ds.dropna('time','all').time.values] for i,ds in enumerate([o3_NP, h2o_NP, T_NP]) ]
-
-plt.show()
-
-
-
-
-
-
-
-
+# %%
 
 #%% Archive
 #%% O2delta
