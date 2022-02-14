@@ -104,20 +104,28 @@ def mk_stat_month(month):
     temp = [glob(path_pattern_ver.format(yy, mm)+filename_pattern_ver) for yy, mm in zip(years, months)]
     # print(path_pattern_ver.format(str(year)[-2:], str(month).zfill(2))+filename_pattern_ver)
     filelist = [item for sublist in temp for item in sublist]
-
-    path_save_stat = '/home/anqil/Documents/sshfs/oso_extra_storage/VER/Channel3/nightglow/averages/Daily_NP_stats/no_equi/'
-    filename_save_stat = 'Daily_NP_mean_{}{}.nc'.format(years[1], months[1])
+    
+    am_pm = 'PM'
+    path_save_stat = '/home/anqil/Documents/sshfs/oso_extra_storage/VER/Channel3/nightglow/averages/Daily_NP_stats/no_equi/{}/'.format(am_pm)
+    filename_save_stat = '{}_Daily_NP_mean_{}{}.nc'.format(am_pm, years[1], months[1])
 
     try:
         with xr.open_mfdataset(filelist) as mds:
             # print(mds)
             mds = mds.sel(time='{}-{}'.format(year, str(month).zfill(2)))
-            cond_lat = mds.latitude>70
+            cond_lat = mds.latitude>70 #NP
             cond_mr = (mds.mr>0.8) * (mds.A_peak>0.8) * (mds.A_diag>0.8)
+            if am_pm == 'AM':
+                cond_am_pm = mds.apparent_solar_time<12
+            elif am_pm == 'PM':
+                cond_am_pm = mds.apparent_solar_time>12
+            elif am_pm == 'ALL':
+                cond_am_pm = mds.apparent_solar_time>0
+
             # cond_equi = mds.equilibrium_index>0.95
             # cond_cost = (mds.ver_cost_x + mds.ver_cost_y) > 10
             ver_NP_daily_resampled = mds[['ver']].where(
-                    cond_lat * cond_mr #* cond_equi
+                    cond_lat * cond_mr * cond_am_pm #* cond_equi
                 ).resample(time='1D')
             misc_NP_daily_resampled = mds['latitude sza apparent_solar_time'.split()].where(
                     cond_lat
@@ -136,18 +144,24 @@ def mk_stat_month(month):
 
     except OSError as e:
         print(year, month, e)
-        pass
 
     except KeyError as e:
         print(year, month, e.__class__)
-        pass
+
 
 #%%
 if __name__ == '__main__':
-    # year = int(input('Enter year: \n'))
-    for year in range(2008, 2009):
+    
+    # year = 2001
+    # mk_stat_month(12)
+    
+    year = int(input('Enter year: \n'))
+    for year in range(year, year+8):
         with Pool(processes=6) as p:
             result = p.map(mk_stat_month, range(1,13))
 
 
 # %%
+
+# %%
+

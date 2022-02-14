@@ -36,7 +36,7 @@ with xr.open_mfdataset(
     oh_NP = NP_ver.copy()
 
 # o2delta
-path_save_stat = '/home/anqil/Documents/sshfs/oso_extra_storage/VER/Channel3/nightglow/averages/Daily_NP_stats/no_equi/'
+path_save_stat = '/home/anqil/Documents/sshfs/oso_extra_storage/VER/Channel3/nightglow/averages/Daily_NP_stats/no_equi/ALL/'
 with xr.open_mfdataset(
     path_save_stat+'Daily_NP_mean_*.nc', 
     preprocess=change_description_o2delta
