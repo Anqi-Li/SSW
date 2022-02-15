@@ -105,7 +105,7 @@ def mk_stat_month(month):
     # print(path_pattern_ver.format(str(year)[-2:], str(month).zfill(2))+filename_pattern_ver)
     filelist = [item for sublist in temp for item in sublist]
     
-    am_pm = 'PM'
+    am_pm = 'AM'
     path_save_stat = '/home/anqil/Documents/sshfs/oso_extra_storage/VER/Channel3/nightglow/averages/Daily_NP_stats/no_equi/{}/'.format(am_pm)
     filename_save_stat = '{}_Daily_NP_mean_{}{}.nc'.format(am_pm, years[1], months[1])
 
