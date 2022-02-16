@@ -224,7 +224,7 @@ def invert_orbit_ch3(path_filename_limb, save_file=False, save_path_filename_ver
             'time': (['time'], time_save),
             'z': (['z',], z, attrs_dict('altitude', 'm', 'Altitude grid of VER retrieval')),
             # 'pixel': (['pixel',], l1.pixel),
-            'ver': (['time','z'], ver, attrs_dict('volume_emission_rate','photons cm-3 s-1', 'IRI OH(3-1) volume emission rate ')), #in correct description: shall be O2delta VER
+            'ver': (['time','z'], ver, attrs_dict('volume_emission_rate','photons cm-3 s-1', 'IRI O2(Delta) volume emission rate ')), #in correct description: shall be O2delta VER
             'mr': (['time','z'], mr, attrs_dict('measurement_response', '1', 'Measurement response')),
             'A_diag': (['time','z'], A_diag, attrs_dict('AVK_diagonal', '1','Averaging kernel matrix diagonal elements')),
             'A_peak': (['time','z'], A_peak, attrs_dict('AVK_maximum', '1', 'Averaging kernel maximum in each row')),
