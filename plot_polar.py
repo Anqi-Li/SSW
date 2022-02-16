@@ -36,9 +36,9 @@ with xr.open_mfdataset(
     oh_NP = NP_ver.copy()
 
 # o2delta
-path_save_stat = '/home/anqil/Documents/sshfs/oso_extra_storage/VER/Channel3/nightglow/averages/Daily_NP_stats/no_equi/ALL/'
+path_save_stat = '/home/anqil/Documents/sshfs/oso_extra_storage/VER/Channel3/nightglow/averages/Daily_NP_stats/no_equi/PM/'
 with xr.open_mfdataset(
-    path_save_stat+'Daily_NP_mean_*.nc', 
+    path_save_stat+'PM_Daily_NP_mean_*.nc', 
     preprocess=change_description_o2delta
     ) as mds:
     NP_ver = mds.mean_ver.rename('O2Delta_mean')
@@ -139,6 +139,35 @@ plt.show()
 
 
 # %%
+# am_pm = 'PM'
+def fetch_data(am_pm):
+    path_save_stat = '/home/anqil/Documents/sshfs/oso_extra_storage/VER/Channel3/nightglow/averages/Daily_NP_stats/no_equi/{}/'.format(am_pm)
+    with xr.open_mfdataset(
+        path_save_stat+'{}_Daily_NP_mean_*.nc'.format(am_pm), 
+        preprocess=change_description_o2delta
+        ) as mds:
+        NP_ver = mds.mean_ver.rename('O2Delta_mean')
+        o2delta_NP = NP_ver.copy()
+    return o2delta_NP
+
+ds_am = fetch_data('AM')
+ds_pm = fetch_data('PM')
+ds = xr.concat([ds_am, ds_pm], dim='am_pm').assign_coords(am_pm=['AM', 'PM'])
+# ds_all = fetch_data('ALL')
+#%%
+year = 2013
+sel_arg = dict(
+    time=slice('{}-11-01'.format(year-1), '{}-02-25'.format(year)),
+    z=slice(60e3,95e3),
+    )
+plot_arg = dict(
+    x='time', y='z', cmap='viridis', 
+    robust=True,
+    norm=LogNorm(vmin=1e3, vmax=2e5),
+    figsize=(5, 3), facecolor='w',
+    )
+ds.sel(**sel_arg).plot(**plot_arg, row='am_pm' )
+
 
 # %%
 
