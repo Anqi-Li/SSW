@@ -33,7 +33,6 @@ o2delta_NP = fetch_iri_data(am_pm, 'O2del')
 
 #%%
 # SMR T, o3, ho2...
-# path_smr = './data_SMR/'
 def fetch_smr_data(filename_pattern, profile):
     path_smr = './data_SMR/'
     with xr.open_mfdataset(
@@ -126,8 +125,8 @@ plt.show()
 
 
 # %% compare AM vs PM 
-ds_am = fetch_iri_data('AM', 'OH')
-ds_pm = fetch_iri_data('PM', 'OH')
+ds_am = fetch_iri_data('AM', 'O2del')
+ds_pm = fetch_iri_data('PM', 'O2del')
 ds = xr.concat([ds_am, ds_pm], dim='am_pm').assign_coords(am_pm=['AM', 'PM'])
 
 # year = 2011
