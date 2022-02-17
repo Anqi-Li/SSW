@@ -1,7 +1,10 @@
 #%%
+from logging import warning
 import numpy as np
 import xarray as xr
 import os
+import warnings
+warnings.filterwarnings('ignore')
 # %% rename files 
 path = "./data_IRI/O2del/ALL/"
 for file in os.listdir(path):
@@ -63,7 +66,7 @@ def change_ver_description(ds):
 	return ds
 
 # year = 2001
-for year in range(2002, 2017):
+for year in range(2017, 2018):
 	print(year)
 	year = str(year)[-2:]
 	# month = 10
