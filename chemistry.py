@@ -1,6 +1,5 @@
 #%%
 import numpy as np
-from sympy import nroots
 import xarray as xr
 import matplotlib.pyplot as plt
 
@@ -150,7 +149,7 @@ ds_bg.sel(month=[1]).o.pipe(lambda x: x*1e-2).plot.line(y='z', c='k', label='msi
 # plt.title('2009-01')
 plt.legend()
 plt.show()
-#%% o conoutrf plot
+#% o conoutrf plot
 plt.figure(facecolor='w')
 o.plot.contourf(y='z', x='time', vmin=0, vmax=9e9)
 plt.show()
@@ -176,7 +175,7 @@ from matplotlib.colors import LogNorm
 plot_arg = dict(
     x='time', y='z', cmap='viridis', robust=True,
     )
-fig, ax = plt.subplots(7,1, figsize=(8,12), facecolor='w', sharex=True, sharey=True)
+fig, ax = plt.subplots(7,1, figsize=(8,15), facecolor='w', sharex=True, sharey=True)
 
 oh_NP.sel(**sel_arg).dropna('time','all').plot(
     ax=ax[0],
@@ -211,23 +210,36 @@ T_NP.sel(**sel_arg).dropna('time','all').plot.contourf(
 o.plot.contourf(
     ax=ax[5],
     **plot_arg,
+    vmax=7.5e9,
     )
 
 oh.plot.contourf(
     ax=ax[6],
     **plot_arg,
+    vmax=60,
     )
-smr_data_list = [p_NP_19, h2o_NP_19, T_NP_19]
-[[ax[i+2].axvline(x=t,c='k',ls=':') for t in ds.dropna('time','all').time.values] \
+smr_data_list = [h2o_NP_19, T_NP_19]
+[[ax[i+3].axvline(x=t,c='k',ls=':') for t in ds.dropna('time','all').time.values] \
     for i,ds in enumerate(smr_data_list) ]
-smr_data_list = [p_NP_13, h2o_NP_13, T_NP_13]
-[[ax[i+2].axvline(x=t,c='r',ls=':') for t in ds.dropna('time','all').time.values] \
+smr_data_list = [h2o_NP_13, T_NP_13]
+[[ax[i+3].axvline(x=t,c='r',ls=':') for t in ds.dropna('time','all').time.values] \
     for i,ds in enumerate(smr_data_list) ]
 
-[ax[i].set(title=title, xlabel='') for i,title in enumerate('OH O2Del P H2O T O OH'.split())]
+[ax[i].set(title=title, xlabel='') \
+    for i,title in enumerate(
+        'OH, O2Del, P, H2O, T, O (from O2del), OH (from p T**-3.4 O)'.split(',')
+        )]
 plt.show()
 
 
 # %%
-PV = nRT
-m = P/(RT)
+# PV = nRT
+R = 8.314*1e-6 #cm3 Pa K-1
+m = (p_NP.sel(**sel_arg)/T_NP.sel(**sel_arg))/R
+
+# m.plot.contourf(x='time', levels=np.logspace(-3,0, 10))
+# plt.show()
+
+m.pipe(lambda x: x*1).plot.line(y='z', add_legend=False, xscale='log')
+ds_bg.n2.sel(month=1).plot(y='z', xscale='log')
+plt.show()
