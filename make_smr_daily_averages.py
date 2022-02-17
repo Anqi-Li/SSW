@@ -14,6 +14,7 @@ def download_from_url(url):
     if filename not in listdir(path_save):
         r = requests.get(url)
         if r.status_code == 404:
+            print('Status 404')
             pass
         else:
             with open(path_save + filename, "wb") as handle:
@@ -65,11 +66,11 @@ def mk_daily(ds_alt, data_vars):
 def process_file(url, profile):
     download_from_url(url)
     filename = url.split('/')[-1]
-    print(profile, filename)
 
     if filename not in listdir(path_save):
         pass
     else:
+        print(profile, filename)
         if 'Daily_'+filename not in listdir(path_save):
             #load data
             with xr.open_dataset(path_save+filename) as ds:
@@ -119,7 +120,7 @@ def fun(year):
         url = baseurl+'Odin-SMR_L2_ALL19lowTunc_H2O-557-GHz-45-to-100-km_{}-{}.nc'.format(year, month)
         process_file(url, profile)
 
-for year in range(2001, 2016):
+for year in range(2001, 2017):
     fun(year)
     
 # ds_daily = process_file(url, profile)
@@ -128,10 +129,44 @@ for year in range(2001, 2016):
 
 
 
-# %%
+# %% make daily averaged pressure
+# year = '2009'
+# month = '01'
+# fm = 19
 
-# %%
+def mk_daily_pressure(year, month, fm):
+    if fm == '19':
+        filename = f'Odin-SMR_L2_ALL19lowTunc_H2O-557-GHz-45-to-100-km_{year}-{month}.nc'
+    elif fm == '13':
+        filename = f'Odin-SMR_L2_ALL-Meso-v3.0.0_H2O-557-GHz-45-to-100-km_{year}-{month}.nc'
 
+    if filename not in listdir(path_save):
+        pass
+    else:
+        with xr.open_dataset(path_save+filename) as ds:
+            ds = ds.assign_coords(time=ds.Time)
+
+        profile = 'Pressure'
+        #altitude interpolation
+        alt_range = np.arange(50,101,1)*1000 #meter
+        ds_alt = alt_interp(ds, profile, alt_range)
+
+        #calculate daily mean at all latitudes
+        ds_daily = mk_daily(ds_alt, [profile])
+        ds_daily.to_netcdf(path_save+f'Daily_pressure_fm{fm}_{year}-{month}.nc')
+        
+        print('done')
+        
+for year in range(2001, 2017):
+    for month in '11 12 01 02'.split():
+        print(year, month)
+        for fm in '13 19'.split():
+            mk_daily_pressure(year, month, fm)
+            
+
+# %% test
+# with xr.open_dataset(path_save+f'Daily_pressure_fm{fm}_{year}-{month}.nc') as ds:
+#     ds.Pressure_mean.sel(latitude=80).plot.contourf(x='time')
 # %%
 
 # %%
