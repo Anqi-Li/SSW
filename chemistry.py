@@ -2,7 +2,9 @@
 import numpy as np
 import xarray as xr
 import matplotlib.pyplot as plt
-
+from matplotlib.colors import LogNorm
+import warnings
+warnings.filterwarnings('ignore')
 def reindex_lat(ds):
     return ds.reindex(latitude_bin=np.arange(-80,90,20))
 
@@ -64,10 +66,10 @@ h2o_NP_19 = fetch_smr_data(filename, 'H2O')
 filename = 'Daily_'+'Odin-SMR_L2_ALL-Meso-v3.0.0_H2O-557-GHz-45-to-100-km_*.nc'
 h2o_NP_13 = fetch_smr_data(filename, 'H2O')
 
-filename = 'Daily_'+'Odin-SMR_L2_ALL19lowTunc_Temperature-557-(Fmode-19)-45-to-90-km_*.nc'
+filename = 'Daily_A_'+'Odin-SMR_L2_ALL19lowTunc_Temperature-557-(Fmode-19)-45-to-90-km_*.nc'
 T_NP_19 = fetch_smr_data(filename, 'Temperature')
 
-filename = 'Daily_'+'Odin-SMR_L2_ALL-Meso-v3.0.0_Temperature-557-(Fmode-13)-45-to-90-km_*.nc'
+filename = 'Daily_A_'+'Odin-SMR_L2_ALL-Meso-v3.0.0_Temperature-557-(Fmode-13)-45-to-90-km_*.nc'
 T_NP_13 = fetch_smr_data(filename, 'Temperature')
 
 
@@ -78,12 +80,12 @@ h2o_NP = xr.concat([h2o_NP_13, h2o_NP_19], dim='time').sortby('time')
 p_NP = xr.concat([p_NP_13, p_NP_19], dim='time').sortby('time')
 
 #%% find duplicated data in smr
-t_dp = T_NP.time.where(T_NP.indexes['time'].duplicated()).dropna('time')
-for i in range(len(t_dp)):
-    T_NP_13.sel(time=t_dp[i].values).plot.line(y='z', label='13')
-    T_NP_19.sel(time=t_dp[i].values).plot.line(y='z', label='19')
-    plt.legend()
-    plt.show()
+t_dp = h2o_NP.time.where(h2o_NP.indexes['time'].duplicated()).dropna('time')
+# for i in range(len(t_dp)):
+#     h2o_NP_13.sel(time=t_dp[i].values).plot.line(y='z', label='13')
+#     h2o_NP_19.sel(time=t_dp[i].values).plot.line(y='z', label='19')
+#     plt.legend()
+#     plt.show()
 
 #%% fetch bg data
 with xr.open_dataset('./data_bg/msis_cmam_climatology_z200_lat8576.nc') as ds:
@@ -110,68 +112,57 @@ def q_o2delta(T, o2, n2):
     # k_o = 1.3e-16
     return k_o2*o2 + k_n2*n2# + k_o*o
 
-# A_o2delta = 2.23e-4 # 2.58e-4
-# Q_o2delta = q_o2delta(T_NP, ds_bg.o2, ds_bg.n2)
+# def cal_o_from_o2delta(o2delta, T, bg):
+#     ds_bg = bg.interp(month=o2delta.time.dt.month)
+#     A_o2delta = 2.23e-4 # 2.58e-4
+#     Q_o2delta = q_o2delta(T, ds_bg.o2, ds_bg.n2)
+#     k_oom = 4.7e-33*(300/T)
+#     ef = 0.1 # O+O+M -> O2del efficiency 
+#     o = np.sqrt(o2delta * (Q_o2delta + A_o2delta)/(ef*k_oom * (ds_bg.o2 + ds_bg.n2)))
+#     return o.rename('[O]_rel')
 
-# # o2(sig v=0) reactions ======================
-# k_oom = 4.7e-33*(300/T_NP)
-# # c_o2 = 6.6 #empirical quenchin coefficient
-# # c_o = 19 #empirical quenchin coefficient
-# # prod_o2sig_from_barth = k_oom * o**2 * m * o2 / (c_o2*o2 + c_o*o)
-    
-# sel_arg = dict(time=slice('2009-01-01', '2009-01-30'))
-# o = np.sqrt(o2delta_NP.sel(**sel_arg) * (Q_o2delta.sel(**sel_arg) + A_o2delta)/(k_oom.sel(**sel_arg) * (ds_bg.o2 + ds_bg.n2)))
+def cal_o_from_o2delta(o2delta, T, p):
+    k = 1.38e-23*1e6 #cm3 Pa K-1
+    m = p/T/k
 
-def cal_o_from_o2delta(o2delta, T, bg):
-    ds_bg = bg.interp(month=T.time.dt.month)
+    n2 = 0.79 * m
+    o2 = 0.21 * m
     A_o2delta = 2.23e-4 # 2.58e-4
-    Q_o2delta = q_o2delta(T, ds_bg.o2, ds_bg.n2)
+    Q_o2delta = q_o2delta(T, o2, n2)
     k_oom = 4.7e-33*(300/T)
-    o = np.sqrt(o2delta * (Q_o2delta + A_o2delta)/(k_oom * (ds_bg.o2 + ds_bg.n2)))
+    ef = 0.1 # O+O+M -> O2del efficiency 
+    o = np.sqrt(o2delta * (Q_o2delta + A_o2delta)/(ef*k_oom * (o2 + n2)))
     return o.rename('[O]_rel')
+
 
 # sel_arg = dict(time=slice('2009-01-01', '2009-03-01'))
 year = 2009
 sel_arg = dict(
     # time=slice('{}-11-01'.format(year-1), '{}-02-25'.format(year)),
-    time=slice(f'{year}-01-01', f'{year}-03-01'),
+    time=slice(f'{year}-01-01', f'{year}-02-20'),
     z=slice(50e3,100e3),
     )
+
+T_flat = ds_bg.T.interp(month=o2delta_NP.sel(**sel_arg).time.dt.month)
 o = cal_o_from_o2delta(
     o2delta_NP.sel(**sel_arg), 
     T_NP.sel(**sel_arg).interp_like(o2delta_NP.sel(**sel_arg)), 
-    ds_bg)
+    # T_flat,
+    # ds_bg
+    p_NP.sel(**sel_arg).interp_like(o2delta_NP.sel(**sel_arg)),
+    )
 
-#%% o line plot
-plt.figure(facecolor='w')
-o.plot.line(y='z', add_legend=False)
-ds_bg.sel(month=[1]).o.pipe(lambda x: x*1e-2).plot.line(y='z', c='k', label='msis/100', xscale='linear')
-# plt.title('2009-01')
-plt.legend()
-plt.show()
-#% o conoutrf plot
-plt.figure(facecolor='w')
-o.plot.contourf(y='z', x='time', vmin=0, vmax=9e9)
-plt.show()
-#%% derive OH (reletive)
+#% derive OH (reletive)
 def cal_oh_from_o(p,T,o):
     return (p * T**(-3.4) * o).rename('[OH*]_rel')
+
 oh = cal_oh_from_o(
     p_NP.sel(**sel_arg).interp_like(o2delta_NP.sel(**sel_arg)), 
     T_NP.sel(**sel_arg).interp_like(o2delta_NP.sel(**sel_arg)),
+    # T_flat,
     o)
 
-#%% oh contourf plot
-plt.figure(facecolor='w')
-oh.plot(y='z', x='time', vmin=0, vmax=30)
-
-# show smr sampling
-# for i in T_NP.sel(**sel_arg).time.values:
-#     plt.axvline(x=i, c='k', ls=':')
-plt.show()
-
 #%% all contour plots
-from matplotlib.colors import LogNorm
 plot_arg = dict(
     x='time', y='z', cmap='viridis', robust=True,
     )
@@ -205,18 +196,19 @@ h2o_NP.sel(**sel_arg).dropna('time','all').plot.contourf(
 T_NP.sel(**sel_arg).dropna('time','all').plot.contourf(
     ax=ax[4],
     **plot_arg,
+    vmin=180, vmax=270,
     )
 
 o.plot.contourf(
     ax=ax[5],
     **plot_arg,
-    vmax=7.5e9,
+    vmin=0, vmax=7.5e9,
     )
 
 oh.plot.contourf(
     ax=ax[6],
     **plot_arg,
-    vmax=60,
+    vmin=0, vmax=30,
     )
 smr_data_list = [h2o_NP_19, T_NP_19]
 [[ax[i+3].axvline(x=t,c='k',ls=':') for t in ds.dropna('time','all').time.values] \
@@ -231,15 +223,75 @@ smr_data_list = [h2o_NP_13, T_NP_13]
         )]
 plt.show()
 
+#%% o line plot
+plt.figure(facecolor='w')
+o.plot.line(y='z', add_legend=False)
+ds_bg.sel(month=[1]).o.pipe(lambda x: x*1e-2).plot.line(y='z', c='k', label='msis/100', xscale='linear')
+# plt.title('2009-01')
+plt.legend()
+plt.show()
+# #% o conoutrf plot
+# plt.figure(facecolor='w')
+# o.plot.contourf(y='z', x='time', vmin=0, vmax=9e9)
+# plt.show()
+
+#%% oh line plot
+plt.figure(facecolor='w')
+oh.plot.line(y='z', add_legend=False, xlim=[0,60])
+plt.show()
+# #% oh contourf plot
+# plt.figure(facecolor='w')
+# oh.plot(y='z', x='time', vmin=0, vmax=30)
+
+# # show smr sampling
+# # for i in T_NP.sel(**sel_arg).time.values:
+# #     plt.axvline(x=i, c='k', ls=':')
+# plt.show()
 
 # %%
-# PV = nRT
-R = 8.314*1e-6 #cm3 Pa K-1
-m = (p_NP.sel(**sel_arg)/T_NP.sel(**sel_arg))/R
+# PV = nkT
+k = 1.38e-23*1e6 #cm3 Pa K-1
+m_NP = p_NP.sel(**sel_arg)/T_NP.sel(**sel_arg)/k
 
 # m.plot.contourf(x='time', levels=np.logspace(-3,0, 10))
 # plt.show()
 
-m.pipe(lambda x: x*1).plot.line(y='z', add_legend=False, xscale='log')
-ds_bg.n2.sel(month=1).plot(y='z', xscale='log')
+m_NP.plot.line(y='z', add_legend=False, xscale='log')
+ds_bg.sel(month=1).pipe(lambda d: d.n2 + d.o2).plot(y='z', xscale='log')
+plt.show()
+
+#%%
+p_NP.plot.line(y='z', add_legend=False, xscale='log')
+ds_bg.sel(month=1).p.plot(y='z', xscale='log')
+plt.show()
+
+#%%
+ds_bg.sel(month=1).pipe(lambda x: x.p/(x.n2+x.o2)/x.T).plot(y='z')
+
+#%%
+plt.rcParams['figure.facecolor'] = 'white'
+
+with xr.open_dataset('./data_bg/msis_cmam_climatology_z200_lat8576.nc') as ds:
+    # print(ds)
+    ds = ds.sel(
+        # month=1,
+        # lat=0,
+        # method='nearest'
+    ).reindex(
+        lat=ds.lat[::-1]
+    ).interp(
+        lat=np.arange(80,-81,-20)
+    )
+
+def cal_oh (p,T,o):
+    return (p * T**(-3.4) * o)
+oh = cal_oh(ds.p, ds.T, ds.o)
+ds['oh'] = oh
+#%%
+# oh.plot(y='z', ylim=(70,120))
+
+fig = plt.figure(facecolor='w')
+plot_arg = dict(y='z', ylim=(75,110), col_wrap=3)
+ds.oh.pipe(lambda x: x).plot.contourf(col='lat', x='month', **plot_arg)
+fig.set_facecolor('w')
 plt.show()

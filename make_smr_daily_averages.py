@@ -27,7 +27,7 @@ def alt_interp(ds, profile, alt_range):
   profile_alt = []
   # Apriori_alt=[]
   for i in range(len(ds.time)):
-      profile_alt.append(np.interp(alt_range,ds.Altitude.isel(time=i),ds[profile].where(ds.MeasResponse>0.8).isel(time=i)))
+      profile_alt.append(np.interp(alt_range,ds.Altitude.isel(time=i),ds[profile].where(ds.MeasResponse>0).isel(time=i)))
       # Apriori_alt.append(np.interp(alt_range, ds.Altitude.isel(time=i),ds.Apriori.isel(time=i)))
   ds_alt = xr.Dataset({profile: (["time","altitude"],profile_alt), 
                       # "Apriori": (["time","altitude"],Apriori_alt),
@@ -67,11 +67,12 @@ def process_file(url, profile):
     download_from_url(url)
     filename = url.split('/')[-1]
 
+    prefix = 'Daily_A_'
     if filename not in listdir(path_save):
         pass
     else:
         print(profile, filename)
-        if 'Daily_'+filename not in listdir(path_save):
+        if prefix+filename not in listdir(path_save):
             #load data
             with xr.open_dataset(path_save+filename) as ds:
                 # ds = ds.assign_coords(pressure=ds.Pressure[0]).swap_dims({"level":"pressure"})
@@ -86,10 +87,10 @@ def process_file(url, profile):
 
                 #calculate daily mean at all latitudes
                 ds_daily = mk_daily(ds_alt, [profile])
-                ds_daily.to_netcdf(path_save+'Daily_'+filename)
+                ds_daily.to_netcdf(path_save+prefix+filename)
 
         else:
-            ds_daily = xr.open_dataset(path_save+'Daily_'+filename)
+            ds_daily = xr.open_dataset(path_save+prefix+filename)
             ds_daily.close()
         
         return ds_daily
@@ -102,11 +103,11 @@ def fun(year):
     for month in '11 12 01 02'.split():
         print(year, month)
 
-        profile ='O3'
-        url = baseurl+'Odin-SMR_L2_ALL-Meso-v3.0.0_O3-557-GHz-45-to-90-km_{}-{}.nc'.format(year, month)
-        process_file(url, profile)
-        url = baseurl+'Odin-SMR_L2_ALL19lowTunc_O3-557-GHz-45-to-90-km_{}-{}.nc'.format(year, month)
-        process_file(url, profile)
+        # profile ='O3'
+        # url = baseurl+'Odin-SMR_L2_ALL-Meso-v3.0.0_O3-557-GHz-45-to-90-km_{}-{}.nc'.format(year, month)
+        # process_file(url, profile)
+        # url = baseurl+'Odin-SMR_L2_ALL19lowTunc_O3-557-GHz-45-to-90-km_{}-{}.nc'.format(year, month)
+        # process_file(url, profile)
 
         profile = 'Temperature'
         url = baseurl+'Odin-SMR_L2_ALL-Meso-v3.0.0_Temperature-557-(Fmode-13)-45-to-90-km_{}-{}.nc'.format(year, month)
@@ -114,11 +115,11 @@ def fun(year):
         url = baseurl+'Odin-SMR_L2_ALL19lowTunc_Temperature-557-(Fmode-19)-45-to-90-km_{}-{}.nc'.format(year, month)
         process_file(url, profile)
 
-        profile = 'H2O'
-        url = baseurl+'Odin-SMR_L2_ALL-Meso-v3.0.0_H2O-557-GHz-45-to-100-km_{}-{}.nc'.format(year, month)
-        process_file(url, profile)
-        url = baseurl+'Odin-SMR_L2_ALL19lowTunc_H2O-557-GHz-45-to-100-km_{}-{}.nc'.format(year, month)
-        process_file(url, profile)
+        # profile = 'H2O'
+        # url = baseurl+'Odin-SMR_L2_ALL-Meso-v3.0.0_H2O-557-GHz-45-to-100-km_{}-{}.nc'.format(year, month)
+        # process_file(url, profile)
+        # url = baseurl+'Odin-SMR_L2_ALL19lowTunc_H2O-557-GHz-45-to-100-km_{}-{}.nc'.format(year, month)
+        # process_file(url, profile)
 
 for year in range(2001, 2017):
     fun(year)
