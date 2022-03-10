@@ -129,7 +129,7 @@ def cal_o_from_o2delta(o2delta, T, p):
     o2 = 0.21 * m
     A_o2delta = 2.23e-4 # 2.58e-4
     Q_o2delta = q_o2delta(T, o2, n2)
-    k_oom = 4.7e-33*(300/T)
+    k_oom = 4.7e-33 * (300/T)**2
     ef = 0.1 # O+O+M -> O2del efficiency 
     o = np.sqrt(o2delta * (Q_o2delta + A_o2delta)/(ef*k_oom * (o2 + n2)))
     return o.rename('[O]_rel')
@@ -166,20 +166,17 @@ oh = cal_oh_from_o(
 plot_arg = dict(
     x='time', y='z', cmap='viridis', robust=True,
     )
-fig, ax = plt.subplots(7,1, figsize=(8,15), facecolor='w', sharex=True, sharey=True)
+fig, ax = plt.subplots(7,1, figsize=(8,15), facecolor='w', sharex=True, sharey=False)
 
-oh_NP.sel(**sel_arg).dropna('time','all').plot(
+h2o_NP.sel(**sel_arg).dropna('time','all').plot.contourf(
     ax=ax[0],
     **plot_arg,
-    norm=LogNorm(),
-    vmin=1e3, vmax=2e5,
     )
 
-o2delta_NP.sel(**sel_arg).dropna('time', 'all').plot(
+T_NP.sel(**sel_arg).dropna('time','all').plot.contourf(
     ax=ax[1],
     **plot_arg,
-    norm=LogNorm(),
-    vmin=1e3, vmax=2e5,
+    vmin=180, vmax=270,
     )
 
 p_NP.sel(**sel_arg).dropna('time','all').plot.contourf(
@@ -188,44 +185,52 @@ p_NP.sel(**sel_arg).dropna('time','all').plot.contourf(
     levels=np.logspace(-2,2,10),
     )
 
-h2o_NP.sel(**sel_arg).dropna('time','all').plot.contourf(
+o2delta_NP.sel(**sel_arg).dropna('time', 'all').plot(
     ax=ax[3],
     **plot_arg,
+    # norm=LogNorm(),
+    vmin=1e3, vmax=1e5,
+    ylim=(70e3,95e3),
     )
 
-T_NP.sel(**sel_arg).dropna('time','all').plot.contourf(
+oh_NP.sel(**sel_arg).dropna('time','all').plot(
     ax=ax[4],
     **plot_arg,
-    vmin=180, vmax=270,
+    # norm=LogNorm(),
+    vmin=1e3, vmax=1.5e5,
+    ylim=(70e3,95e3),
     )
 
 o.plot.contourf(
     ax=ax[5],
     **plot_arg,
-    vmin=0, vmax=7.5e9,
+    vmin=0, vmax=2e10,
+    ylim=(70e3,95e3),
     )
 
 oh.plot.contourf(
     ax=ax[6],
     **plot_arg,
-    vmin=0, vmax=30,
+    vmin=0, vmax=100,
+    ylim=(70e3,95e3),
     )
+
 smr_data_list = [h2o_NP_19, T_NP_19]
-[[ax[i+3].axvline(x=t,c='k',ls=':') for t in ds.dropna('time','all').time.values] \
+[[ax[i].axvline(x=t,c='k',ls=':') for t in ds.dropna('time','all').time.values] \
     for i,ds in enumerate(smr_data_list) ]
 smr_data_list = [h2o_NP_13, T_NP_13]
-[[ax[i+3].axvline(x=t,c='r',ls=':') for t in ds.dropna('time','all').time.values] \
+[[ax[i].axvline(x=t,c='r',ls=':') for t in ds.dropna('time','all').time.values] \
     for i,ds in enumerate(smr_data_list) ]
 
 [ax[i].set(title=title, xlabel='') \
     for i,title in enumerate(
-        'OH, O2Del, P, H2O, T, O (from O2del), OH (from p T**-3.4 O)'.split(',')
+        'H2O, T, P, O2Del, OH (3-1), O (modelled), OH* (modelled)'.split(',')
         )]
 plt.show()
 
 #%% o line plot
 plt.figure(facecolor='w')
-o.plot.line(y='z', add_legend=False)
+o.plot.line(y='z', add_legend=False, xlim=[0, 2.5e10])
 ds_bg.sel(month=[1]).o.pipe(lambda x: x*1e-2).plot.line(y='z', c='k', label='msis/100', xscale='linear')
 # plt.title('2009-01')
 plt.legend()
@@ -264,9 +269,6 @@ plt.show()
 p_NP.plot.line(y='z', add_legend=False, xscale='log')
 ds_bg.sel(month=1).p.plot(y='z', xscale='log')
 plt.show()
-
-#%%
-ds_bg.sel(month=1).pipe(lambda x: x.p/(x.n2+x.o2)/x.T).plot(y='z')
 
 #%%
 plt.rcParams['figure.facecolor'] = 'white'
